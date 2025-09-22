@@ -34,6 +34,7 @@ type ParsedMessageInfo struct {
 	GroupId  string `json:"groupId"`  // 群聊ID（群聊消息时使用）
 	MetaId   string `json:"metaId"`   // 私聊的MetaId（私聊消息时使用）
 	ChatType string `json:"chatType"` // 聊天类型：private_chat 或 group_chat
+	UserName string `json:"userName"` // 用户名
 }
 
 // NewPushCenter 创建推送中心实例
@@ -248,7 +249,7 @@ func (pc *PushCenter) processChatMessage(chatMsg *socket_client_service.ChatNoti
 
 	// 构造推送通知内容
 	title := pc.generateNotificationTitle(chatMsg.Type)
-	body := pc.GenerateNotificationBody(chatMsg.Type)
+	body := pc.GenerateNotificationBody(chatMsg.Type, parsedInfo.UserName)
 
 	// 构造自定义数据，包含解析后的信息
 	data := map[string]interface{}{
@@ -258,17 +259,22 @@ func (pc *PushCenter) processChatMessage(chatMsg *socket_client_service.ChatNoti
 		"pinId":     parsedInfo.PinId,
 	}
 
+	// // 添加用户名信息（如果存在）
+	// if parsedInfo.UserName != "" {
+	// 	data["userName"] = parsedInfo.UserName
+	// }
+
 	// 根据聊天类型添加特定信息
 	if parsedInfo.ChatType == "private_chat" && parsedInfo.MetaId != "" {
 		data["metaId"] = parsedInfo.MetaId
-		log.Printf("📱 私聊消息 - 发送者/接收者MetaId: %s", parsedInfo.MetaId)
+		log.Printf("📱 私聊消息 - 发送者/接收者MetaId: %s, 用户名: %s", parsedInfo.MetaId, parsedInfo.UserName)
 	} else if parsedInfo.ChatType == "group_chat" && parsedInfo.GroupId != "" {
 		data["groupId"] = parsedInfo.GroupId
-		log.Printf("👥 群聊消息 - 群组ID: %s", parsedInfo.GroupId)
+		log.Printf("👥 群聊消息 - 群组ID: %s, 用户名: %s", parsedInfo.GroupId, parsedInfo.UserName)
 	}
 
 	log.Printf("🚀 开始推送消息给 %d 个用户", len(filteredMetaIds))
-	log.Printf("📋 消息详情 - PinId: %s, ChatType: %s", parsedInfo.PinId, parsedInfo.ChatType)
+	log.Printf("📋 消息详情 - PinId: %s, ChatType: %s, UserName: %s", parsedInfo.PinId, parsedInfo.ChatType, parsedInfo.UserName)
 
 	// 调用 push_service.SendToUsers 发送推送
 	result, err := pc.pushManager.SendToUsersWithData(ctx, filteredMetaIds, title, body, data)
@@ -313,28 +319,48 @@ func (pc *PushCenter) generateNotificationTitle(msgType string) string {
 }
 
 // GenerateNotificationBody 生成通知内容
-func (pc *PushCenter) GenerateNotificationBody(msgType string) string {
-	// 提取消息内容
-	// messageContent := pc.extractMessageContent(message)
-
-	// 根据消息类型生成不同的内容格式
+func (pc *PushCenter) GenerateNotificationBody(msgType, userName string) string {
+	// 根据消息类型和用户名生成不同的内容格式
 	switch msgType {
 	case "private_chat":
-		// if messageContent != "" {
-		// 	return messageContent
-		// }
+		if userName != "" {
+			truncatedName := pc.truncateUserName(userName)
+			return fmt.Sprintf("%s sent you a message", truncatedName)
+		}
 		return "You have a new message"
 	case "group_chat":
-		// if messageContent != "" {
-		// 	return messageContent
-		// }
+		if userName != "" {
+			truncatedName := pc.truncateUserName(userName)
+			return fmt.Sprintf("%s sent a message", truncatedName)
+		}
 		return "New message in group"
 	default:
-		// if messageContent != "" {
-		// 	return messageContent
-		// }
+		if userName != "" {
+			truncatedName := pc.truncateUserName(userName)
+			return fmt.Sprintf("%s sent you a message", truncatedName)
+		}
 		return "You have a new message"
 	}
+}
+
+// truncateUserName 截取用户名，参考 Telegram 的处理方式
+func (pc *PushCenter) truncateUserName(userName string) string {
+	if userName == "" {
+		return userName
+	}
+
+	// Telegram 通常将用户名限制在 20-25 个字符左右
+	// 考虑到通知的显示空间，我们设置为 20 个字符
+	const maxLength = 20
+
+	if len(userName) <= maxLength {
+		return userName
+	}
+
+	// 截取到 maxLength-3 个字符，然后添加 "..."
+	// 这样总长度不会超过 maxLength
+	truncated := userName[:maxLength-3] + "..."
+	return truncated
 }
 
 // extractMessageContent 提取消息内容
@@ -407,6 +433,17 @@ func (pc *PushCenter) parseMessageInfo(chatMsg *socket_client_service.ChatNotifi
 			}
 		}
 
+		// 解析 userInfo.name
+		if userInfo, exists := messageMap["userInfo"]; exists {
+			if userInfoMap, ok := userInfo.(map[string]interface{}); ok {
+				if name, exists := userInfoMap["name"]; exists {
+					if nameStr, ok := name.(string); ok {
+						parsedInfo.UserName = nameStr
+					}
+				}
+			}
+		}
+
 		// 根据聊天类型解析不同的字段
 		switch chatMsg.Type {
 		case "private_chat":
@@ -449,8 +486,8 @@ func (pc *PushCenter) parseMessageInfo(chatMsg *socket_client_service.ChatNotifi
 			}
 		}
 
-		log.Printf("📋 解析消息信息成功: PinId=%s, GroupId=%s, MetaId=%s, ChatType=%s",
-			parsedInfo.PinId, parsedInfo.GroupId, parsedInfo.MetaId, parsedInfo.ChatType)
+		log.Printf("📋 解析消息信息成功: PinId=%s, GroupId=%s, MetaId=%s, UserName=%s, ChatType=%s",
+			parsedInfo.PinId, parsedInfo.GroupId, parsedInfo.MetaId, parsedInfo.UserName, parsedInfo.ChatType)
 		return parsedInfo, nil
 	}
 

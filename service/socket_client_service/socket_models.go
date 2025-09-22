@@ -6,11 +6,11 @@ type PrivateChatItem struct {
 	// FromUserInfo *UserInfo   `json:"fromUserInfo"`
 	To string `json:"to"` // Receiver MetaId
 	// ToUserInfo   *UserInfo   `json:"toUserInfo"`
-	TxId    string `json:"txId"`
-	PinId   string `json:"pinId"`
-	MetaId  string `json:"metaId"`  // Message creator MetaId
-	Address string `json:"address"` // Message creator address
-	// UserInfo     *UserInfo   `json:"userInfo"` // User info
+	TxId        string      `json:"txId"`
+	PinId       string      `json:"pinId"`
+	MetaId      string      `json:"metaId"`   // Message creator MetaId
+	Address     string      `json:"address"`  // Message creator address
+	UserInfo    *UserInfo   `json:"userInfo"` // User info
 	NickName    string      `json:"nickName"`
 	Protocol    string      `json:"protocol"`
 	Content     string      `json:"content"`
@@ -30,20 +30,20 @@ type PrivateChatItem struct {
 }
 
 type GroupChatItem struct {
-	GroupId   string `json:"groupId"`   //Room ID, unique
-	ChannelId string `json:"channelId"` //Channel ID, unique
-	MetanetId string `json:"metanetId"` //
-	TxId      string `json:"txId"`
-	PinId     string `json:"pinId"`
-	MetaId    string `json:"metaId"`
-	Address   string `json:"address"`
-	// UserInfo    *UserInfo       `json:"userInfo"`
-	NickName    string `json:"nickName"`
-	Protocol    string `json:"protocol"`
-	Content     string `json:"content"`
-	ContentType string `json:"contentType"`
-	Encryption  string `json:"encryption"`
-	Version     string `json:"version"` // Version
+	GroupId     string    `json:"groupId"`   //Room ID, unique
+	ChannelId   string    `json:"channelId"` //Channel ID, unique
+	MetanetId   string    `json:"metanetId"` //
+	TxId        string    `json:"txId"`
+	PinId       string    `json:"pinId"`
+	MetaId      string    `json:"metaId"`
+	Address     string    `json:"address"`
+	UserInfo    *UserInfo `json:"userInfo"`
+	NickName    string    `json:"nickName"`
+	Protocol    string    `json:"protocol"`
+	Content     string    `json:"content"`
+	ContentType string    `json:"contentType"`
+	Encryption  string    `json:"encryption"`
+	Version     string    `json:"version"` // Version
 	// ChatType    models.ChatType `json:"chatType"` //0-msg, 1-red, 2-img
 	Data     interface{} `json:"data"`
 	ReplyPin string      `json:"replyPin"`
@@ -54,4 +54,14 @@ type GroupChatItem struct {
 	Chain       string `json:"chain"`       //Chain type
 	BlockHeight int64  `json:"blockHeight"` //Block height
 	Index       int64  `json:"index"`       //Index default -1
+}
+
+type UserInfo struct {
+	Metaid          string `json:"metaid"`
+	Address         string `json:"address"`
+	Name            string `json:"name"`
+	Avatar          string `json:"avatar"`
+	AvatarImage     string `json:"avatarImage"`
+	ChatPublicKey   string `json:"chatPublicKey"`
+	ChatPublicKeyId string `json:"chatPublicKeyId"`
 }
