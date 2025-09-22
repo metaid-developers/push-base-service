@@ -1,0 +1,11 @@
+.DS_Store
+.idea
+conf/conf_pro.yaml
+conf/conf_test.yaml
+conf/conf_test_loc.yaml
+data/
+logs/
+*.log
+*.log.*
+*.log.*.*
+go.sum

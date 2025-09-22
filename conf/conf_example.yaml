@@ -1,0 +1,46 @@
+# api port
+port: "1234"
+
+# push service configuration
+push:
+  default_provider: "expo"
+  default_sound: "default"
+  default_ttl: 3600
+  default_priority: "normal"
+  max_retries: 3
+  retry_interval: "1s"
+  batch_size: 100
+  batch_timeout: "30s"
+  max_concurrency: 6
+  enable_stats: true
+  stats_interval: "5m"
+  health_check_interval: "10m"
+  providers:
+    expo:
+      access_token: ""
+      timeout: "30s"
+      max_retries: 3
+      base_delay: "1s"
+      default_sound: "default"
+      default_ttl: 3600
+      default_priority: "normal"
+      batch_size: 100
+      max_concurrency: 6
+
+# push center configuration
+push_center:
+  enabled: true
+  db_path: "./data/push_center_pebble"
+
+# socket.io client configuration
+socket_client:
+  server_url: "https://www.show.now/socket-test"
+  meta_id: "27223571215ada00cc5071cac1f5b3b43f2acd5eb06b3dd8a19e8be0db88856d"
+  path: "/socket.io/"
+  timeout: 10  # seconds
+
+#rds
+rds:
+  dsn: ""
+  max_open_conns: 1000
+  max_igle_conns: 50

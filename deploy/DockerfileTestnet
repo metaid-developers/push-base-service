@@ -1,0 +1,10 @@
+#push-base-service
+FROM golang:1.24
+ENV GO_FILE_PATH /mnt/app
+WORKDIR ${GO_FILE_PATH}/goWork/src/push-base-service
+ADD . ${GO_FILE_PATH}/goWork/src/push-base-service
+RUN go env -w GOPROXY=https://goproxy.cn,direct
+RUN go mod tidy
+RUN go build
+EXPOSE 7268
+CMD ["go", "run", "main.go", "-env", "testnet", "push-base-service"]

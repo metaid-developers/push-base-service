@@ -1,0 +1,448 @@
+basePath: /push-base
+definitions:
+  models.BlockedChat:
+    properties:
+      blockedAt:
+        description: 屏蔽时间
+        type: integer
+      chatId:
+        description: 群ID或私聊ID
+        type: string
+      chatType:
+        description: 聊天类型 (group, private)
+        type: string
+      reason:
+        description: 屏蔽原因
+        type: string
+      userId:
+        description: 用户ID
+        type: string
+    required:
+    - chatId
+    - userId
+    type: object
+  models.UserBlockedChats:
+    properties:
+      blockedChats:
+        description: 屏蔽的聊天列表
+        items:
+          $ref: '#/definitions/models.BlockedChat'
+        type: array
+      updatedAt:
+        description: 最后更新时间
+        type: integer
+      userId:
+        description: 用户ID
+        type: string
+    required:
+    - userId
+    type: object
+  models.UserPushTokens:
+    properties:
+      metaId:
+        description: 用户唯一标识
+        type: string
+      tokens:
+        additionalProperties:
+          type: string
+        description: '平台->令牌映射 {"expo": "ExponentPushToken[...]", "fcm": "fcm_token_123"}'
+        type: object
+      updatedAt:
+        description: 最后更新时间
+        type: integer
+    required:
+    - metaId
+    type: object
+  pebble_service.PaginatedUserTokens:
+    properties:
+      hasNext:
+        description: 是否有下一页
+        type: boolean
+      page:
+        description: 当前页码
+        type: integer
+      pageSize:
+        description: 每页大小
+        type: integer
+      total:
+        description: 总数量
+        type: integer
+      totalPages:
+        description: 总页数
+        type: integer
+      users:
+        description: 用户令牌列表
+        items:
+          $ref: '#/definitions/models.UserPushTokens'
+        type: array
+    type: object
+  request.AddBlockedChatReq:
+    properties:
+      chatId:
+        type: string
+      chatType:
+        description: 聊天类型：group, private
+        type: string
+      metaId:
+        type: string
+      reason:
+        description: 屏蔽原因（可选）
+        type: string
+    required:
+    - chatId
+    - chatType
+    - metaId
+    type: object
+  request.RemoveBlockedChatReq:
+    properties:
+      chatId:
+        type: string
+      metaId:
+        type: string
+    required:
+    - chatId
+    - metaId
+    type: object
+  request.RemoveUserAllTokensReq:
+    properties:
+      metaId:
+        type: string
+    required:
+    - metaId
+    type: object
+  request.RemoveUserTokenReq:
+    properties:
+      metaId:
+        type: string
+      platform:
+        type: string
+    required:
+    - metaId
+    - platform
+    type: object
+  request.SetUserTokensReq:
+    properties:
+      metaId:
+        type: string
+      platform:
+        type: string
+      token:
+        description: Token本身就是设备的唯一标识
+        type: string
+    required:
+    - metaId
+    - platform
+    - token
+    type: object
+  respond.Response:
+    description: 统一的 API 响应格式
+    properties:
+      code:
+        example: 0
+        type: integer
+      data: {}
+      message:
+        example: success
+        type: string
+      processingTime:
+        example: 123
+        type: integer
+    type: object
+host: api.idchat.io
+info:
+  contact: {}
+  description: 推送通知基础服务，支持多平台推送和用户令牌管理
+  title: 推送基础服务 API
+  version: "1.0"
+paths:
+  /v1/push/add_blocked_chat:
+    post:
+      consumes:
+      - application/json
+      description: 为用户添加屏蔽某个群聊或私聊
+      parameters:
+      - description: 请求参数
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.AddBlockedChatReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "401":
+          description: 认证失败
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/respond.Response'
+      summary: 添加屏蔽聊天
+      tags:
+      - Push API
+  /v1/push/get_user_blocked_chats:
+    get:
+      description: 根据用户 metaId 获取该用户屏蔽的聊天列表
+      parameters:
+      - description: 用户唯一标识
+        in: query
+        name: metaId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应
+          schema:
+            allOf:
+            - $ref: '#/definitions/respond.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserBlockedChats'
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "401":
+          description: 认证失败
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/respond.Response'
+      summary: 获取用户屏蔽聊天列表
+      tags:
+      - Push API
+  /v1/push/get_user_token:
+    get:
+      description: 根据用户 metaId 获取该用户的所有推送令牌
+      parameters:
+      - description: 用户唯一标识
+        in: query
+        name: metaId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应
+          schema:
+            allOf:
+            - $ref: '#/definitions/respond.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserPushTokens'
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "401":
+          description: 认证失败
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/respond.Response'
+      summary: 根据 metaId 获取用户推送令牌
+      tags:
+      - Push API
+  /v1/push/get_user_tokens_list:
+    get:
+      description: 分页获取所有用户的推送令牌列表
+      parameters:
+      - default: 1
+        description: 页码，默认为1
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页大小，默认为10
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应
+          schema:
+            allOf:
+            - $ref: '#/definitions/respond.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/pebble_service.PaginatedUserTokens'
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "401":
+          description: 认证失败
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/respond.Response'
+      summary: 获取用户推送令牌列表（分页）
+      tags:
+      - Push API
+  /v1/push/remove_blocked_chat:
+    post:
+      consumes:
+      - application/json
+      description: 移除用户对某个群聊或私聊的屏蔽
+      parameters:
+      - description: 请求参数
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.RemoveBlockedChatReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "401":
+          description: 认证失败
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/respond.Response'
+      summary: 移除屏蔽聊天
+      tags:
+      - Push API
+  /v1/push/remove_user_all_tokens:
+    post:
+      consumes:
+      - application/json
+      description: 移除指定用户的所有推送令牌
+      parameters:
+      - description: 请求参数
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.RemoveUserAllTokensReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "401":
+          description: 认证失败
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/respond.Response'
+      summary: 移除用户所有推送令牌
+      tags:
+      - Push API
+  /v1/push/remove_user_token:
+    post:
+      consumes:
+      - application/json
+      description: 移除指定用户在指定平台的推送令牌
+      parameters:
+      - description: 请求参数
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.RemoveUserTokenReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "401":
+          description: 认证失败
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/respond.Response'
+      summary: 移除用户推送令牌
+      tags:
+      - Push API
+  /v1/push/set_user_tokens:
+    post:
+      consumes:
+      - application/json
+      description: 为指定用户在指定平台设置推送令牌，支持Token唯一性检查。Token本身就是设备的唯一标识，如果Token已被其他用户使用，会自动从原用户中移除该平台的令牌。
+      parameters:
+      - description: 请求参数（metaId、platform、token）
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.SetUserTokensReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "401":
+          description: 认证失败
+          schema:
+            $ref: '#/definitions/respond.Response'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/respond.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 设置用户推送令牌
+      tags:
+      - Push API
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: X-API-KEY
+    type: apiKey
+swagger: "2.0"
