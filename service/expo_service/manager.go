@@ -57,7 +57,7 @@ func (m *Manager) SendNotification(ctx context.Context, token, title, body strin
 		return nil, fmt.Errorf("invalid push token: %s", token)
 	}
 
-	result := m.service.SendSingleNotification(ctx, token, title, body, nil)
+	result := m.service.SendSingleNotification(ctx, token, title, body, nil, "default")
 	return result, nil
 }
 
@@ -67,7 +67,7 @@ func (m *Manager) SendNotificationWithData(ctx context.Context, token, title, bo
 		return nil, fmt.Errorf("invalid push token: %s", token)
 	}
 
-	result := m.service.SendSingleNotification(ctx, token, title, body, data)
+	result := m.service.SendSingleNotification(ctx, token, title, body, data, "default")
 	return result, nil
 }
 
@@ -131,14 +131,14 @@ func (m *Manager) SendCustomMessage(ctx context.Context, message *PushMessage) (
 	// For single token, use single notification method
 	if len(validTokens) == 1 {
 		message.To = validTokens
-		return m.service.SendSingleNotification(ctx, validTokens[0], message.Title, message.Body, message.Data), nil
+		return m.service.SendSingleNotification(ctx, validTokens[0], message.Title, message.Body, message.Data, message.Sound), nil
 	}
 
 	// For multiple tokens, we need to send individually or create multiple messages
 	// For simplicity, we'll send to the first token only in this method
 	// Use SendBulkCustomMessages for multiple tokens
 	message.To = []string{validTokens[0]}
-	return m.service.SendSingleNotification(ctx, validTokens[0], message.Title, message.Body, message.Data), nil
+	return m.service.SendSingleNotification(ctx, validTokens[0], message.Title, message.Body, message.Data, message.Sound), nil
 }
 
 // SendBulkCustomMessages sends custom messages to multiple recipients

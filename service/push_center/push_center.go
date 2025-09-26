@@ -30,11 +30,12 @@ type Config struct {
 
 // ParsedMessageInfo 解析后的消息信息
 type ParsedMessageInfo struct {
-	PinId    string `json:"pinId"`    // PIN ID
-	GroupId  string `json:"groupId"`  // 群聊ID（群聊消息时使用）
-	MetaId   string `json:"metaId"`   // 私聊的MetaId（私聊消息时使用）
-	ChatType string `json:"chatType"` // 聊天类型：private_chat 或 group_chat
-	UserName string `json:"userName"` // 用户名
+	PinId        string `json:"pinId"`        // PIN ID
+	GroupId      string `json:"groupId"`      // 群聊ID（群聊消息时使用）
+	MetaId       string `json:"metaId"`       // 私聊的MetaId（私聊消息时使用）
+	ChatType     string `json:"chatType"`     // 聊天类型：private_chat 或 group_chat
+	UserName     string `json:"userName"`     // 用户名
+	ChatInfoType int64  `json:"chatInfoType"` // 聊天信息类型：1/23-红包
 }
 
 // NewPushCenter 创建推送中心实例
@@ -249,7 +250,7 @@ func (pc *PushCenter) processChatMessage(chatMsg *socket_client_service.ChatNoti
 
 	// 构造推送通知内容
 	title := pc.generateNotificationTitle(chatMsg.Type)
-	body := pc.GenerateNotificationBody(chatMsg.Type, parsedInfo.UserName)
+	body := pc.GenerateNotificationBody(chatMsg.Type, parsedInfo.UserName, parsedInfo.ChatInfoType)
 
 	// 构造自定义数据，包含解析后的信息
 	data := map[string]interface{}{
@@ -319,24 +320,33 @@ func (pc *PushCenter) generateNotificationTitle(msgType string) string {
 }
 
 // GenerateNotificationBody 生成通知内容
-func (pc *PushCenter) GenerateNotificationBody(msgType, userName string) string {
+func (pc *PushCenter) GenerateNotificationBody(msgType, userName string, chatInfoType int64) string {
 	// 根据消息类型和用户名生成不同的内容格式
 	switch msgType {
 	case "private_chat":
 		if userName != "" {
 			truncatedName := pc.truncateUserName(userName)
+			if chatInfoType == 1 || chatInfoType == 23 {
+				return fmt.Sprintf("%s sent you a Candy Bag", truncatedName)
+			}
 			return fmt.Sprintf("%s sent you a message", truncatedName)
 		}
 		return "You have a new message"
 	case "group_chat":
 		if userName != "" {
 			truncatedName := pc.truncateUserName(userName)
+			if chatInfoType == 1 || chatInfoType == 23 {
+				return fmt.Sprintf("%s sent a Candy Bag", truncatedName)
+			}
 			return fmt.Sprintf("%s sent a message", truncatedName)
 		}
 		return "New message in group"
 	default:
 		if userName != "" {
 			truncatedName := pc.truncateUserName(userName)
+			if chatInfoType == 1 || chatInfoType == 23 {
+				return fmt.Sprintf("%s sent you a Candy Bag", truncatedName)
+			}
 			return fmt.Sprintf("%s sent you a message", truncatedName)
 		}
 		return "You have a new message"
@@ -417,8 +427,9 @@ func (pc *PushCenter) parseMessageInfo(chatMsg *socket_client_service.ChatNotifi
 	}
 
 	parsedInfo := &ParsedMessageInfo{
-		ChatType: chatMsg.Type,
-		PinId:    "", // 从 ExtraServiceMessage 直接获取 PinId
+		ChatType:     chatMsg.Type,
+		PinId:        "", // 从 ExtraServiceMessage 直接获取 PinId
+		ChatInfoType: 0,
 	}
 
 	// 尝试解析 Message 字段
@@ -484,10 +495,31 @@ func (pc *PushCenter) parseMessageInfo(chatMsg *socket_client_service.ChatNotifi
 					}
 				}
 			}
+
+			fmt.Printf("messageMap: %+v\n", messageMap)
+			if chatInfoType, exists := messageMap["chatType"]; exists {
+				// 尝试多种数字类型转换
+				switch v := chatInfoType.(type) {
+				case int64:
+					parsedInfo.ChatInfoType = v
+				case int:
+					parsedInfo.ChatInfoType = int64(v)
+				case float64:
+					parsedInfo.ChatInfoType = int64(v)
+				case int32:
+					parsedInfo.ChatInfoType = int64(v)
+				case int16:
+					parsedInfo.ChatInfoType = int64(v)
+				case int8:
+					parsedInfo.ChatInfoType = int64(v)
+				default:
+					log.Printf("⚠️ 无法转换 chatType 类型: %T, 值: %v", v, v)
+				}
+			}
 		}
 
-		log.Printf("📋 解析消息信息成功: PinId=%s, GroupId=%s, MetaId=%s, UserName=%s, ChatType=%s",
-			parsedInfo.PinId, parsedInfo.GroupId, parsedInfo.MetaId, parsedInfo.UserName, parsedInfo.ChatType)
+		log.Printf("📋 解析消息信息成功: PinId=%s, GroupId=%s, MetaId=%s, UserName=%s, ChatType=%s, ChatInfoType=%d",
+			parsedInfo.PinId, parsedInfo.GroupId, parsedInfo.MetaId, parsedInfo.UserName, parsedInfo.ChatType, parsedInfo.ChatInfoType)
 		return parsedInfo, nil
 	}
 

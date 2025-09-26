@@ -66,6 +66,7 @@ func (m *Manager) SendToUsersWithData(ctx context.Context, metaIds []string, tit
 		Title: title,
 		Body:  body,
 		Data:  data,
+		Sound: "default",
 	}
 
 	return m.service.SendToUsers(ctx, metaIds, notification)

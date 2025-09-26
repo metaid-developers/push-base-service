@@ -43,12 +43,13 @@ type SendNotificationResult struct {
 }
 
 // SendSingleNotification sends a notification to a single token with retry logic
-func (s *Service) SendSingleNotification(ctx context.Context, token, title, body string, data map[string]interface{}) *SendNotificationResult {
+func (s *Service) SendSingleNotification(ctx context.Context, token, title, body string, data map[string]interface{}, sound string) *SendNotificationResult {
 	message := &PushMessage{
 		To:    []string{token},
 		Title: title,
 		Body:  body,
 		Data:  data,
+		Sound: sound,
 	}
 
 	result := &SendNotificationResult{
