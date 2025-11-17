@@ -44,8 +44,9 @@ type ChatNotificationMessage struct {
 
 // ExtraChatMessage 聊天消息
 type ExtraServiceMessage struct {
-	Message       interface{} `json:"message"`
-	RepostMetaIds []string    `json:"repostMetaIds"`
+	Message        interface{} `json:"message"`
+	RepostMetaIds  []string    `json:"repostMetaIds"`
+	MentionMetaIds []string    `json:"mentionMetaIds"`
 	// PinId         string      `json:"pinId"`
 }
 
@@ -364,15 +365,17 @@ func (c *Client) handleGroupChatMessage(socketData *SocketData) {
 func (c *Client) parseExtraServiceMessage(data interface{}) (*ExtraServiceMessage, error) {
 	if data == nil {
 		return &ExtraServiceMessage{
-			Message:       nil,
-			RepostMetaIds: []string{},
+			Message:        nil,
+			RepostMetaIds:  []string{},
+			MentionMetaIds: []string{},
 		}, nil
 	}
 
 	// 方法1: 如果是map格式，直接转换
 	if dataMap, ok := data.(map[string]interface{}); ok {
 		extraMsg := &ExtraServiceMessage{
-			RepostMetaIds: []string{},
+			RepostMetaIds:  []string{},
+			MentionMetaIds: []string{},
 		}
 
 		// 解析 message 字段
@@ -394,6 +397,16 @@ func (c *Client) parseExtraServiceMessage(data interface{}) (*ExtraServiceMessag
 			}
 		}
 
+		// 解析 mentionMetaIds 字段
+		if mentionIds, exists := dataMap["mentionMetaIds"]; exists {
+			if mentionArray, ok := mentionIds.([]interface{}); ok {
+				for _, id := range mentionArray {
+					if idStr, ok := id.(string); ok {
+						extraMsg.MentionMetaIds = append(extraMsg.MentionMetaIds, idStr)
+					}
+				}
+			}
+		}
 		// // 解析 pinId 字段
 		// if pinId, exists := dataMap["pinId"]; exists {
 		// 	if pinIdStr, ok := pinId.(string); ok {
@@ -411,8 +424,9 @@ func (c *Client) parseExtraServiceMessage(data interface{}) (*ExtraServiceMessag
 		if err != nil {
 			// 如果JSON解析失败，将字符串作为message
 			return &ExtraServiceMessage{
-				Message:       dataStr,
-				RepostMetaIds: []string{},
+				Message:        dataStr,
+				RepostMetaIds:  []string{},
+				MentionMetaIds: []string{},
 			}, nil
 		}
 		return extraMsg, nil
@@ -420,8 +434,9 @@ func (c *Client) parseExtraServiceMessage(data interface{}) (*ExtraServiceMessag
 
 	// 方法3: 其他类型，直接作为message
 	return &ExtraServiceMessage{
-		Message:       data,
-		RepostMetaIds: []string{},
+		Message:        data,
+		RepostMetaIds:  []string{},
+		MentionMetaIds: []string{},
 	}, nil
 }
 
