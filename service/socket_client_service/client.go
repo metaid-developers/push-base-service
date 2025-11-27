@@ -3,6 +3,7 @@ package socket_client_service
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/url"
 	"strings"
@@ -173,7 +174,23 @@ func (c *Client) IsConnected() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return c.connected && c.socket != nil && c.socket.Connected()
+	if !c.connected || c.socket == nil {
+		return false
+	}
+
+	// 安全地检查连接状态，防止 panic
+	connected := false
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("⚠️ Panic recovered when checking socket.Connected(): %v", r)
+				connected = false
+			}
+		}()
+		connected = c.socket.Connected()
+	}()
+
+	return connected
 }
 
 // setupEventHandlers 设置事件处理器
@@ -184,6 +201,12 @@ func (c *Client) setupEventHandlers() {
 
 	// 连接成功事件
 	c.socket.On("connect", func(data ...interface{}) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("⚠️ Panic recovered in connect handler: %v", r)
+			}
+		}()
+
 		c.mu.Lock()
 		c.connected = true
 		c.mu.Unlock()
@@ -200,6 +223,12 @@ func (c *Client) setupEventHandlers() {
 
 	// 断开连接事件
 	c.socket.On("disconnect", func(data ...interface{}) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("⚠️ Panic recovered in disconnect handler: %v", r)
+			}
+		}()
+
 		c.mu.Lock()
 		c.connected = false
 		c.mu.Unlock()
@@ -213,11 +242,27 @@ func (c *Client) setupEventHandlers() {
 
 	// 连接错误事件
 	c.socket.On("connect_error", func(data ...interface{}) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("⚠️ Panic recovered in connect_error handler: %v", r)
+				// 即使 panic 了，也尝试通知错误处理器
+				if c.OnError != nil {
+					go c.OnError(fmt.Errorf("connect error panic recovered: %v", r))
+				}
+			}
+		}()
+
 		var err error
-		if len(data) > 0 {
+		if len(data) > 0 && data[0] != nil {
 			if e, ok := data[0].(error); ok {
 				err = e
+			} else {
+				// 如果不是 error 类型，创建一个错误
+				err = fmt.Errorf("connection error: %v", data[0])
 			}
+		} else {
+			// 如果没有错误数据，创建一个通用错误
+			err = errors.New("connection error: unknown error")
 		}
 
 		log.Printf("🔥 Socket.IO connect error: %v", err)
@@ -227,21 +272,74 @@ func (c *Client) setupEventHandlers() {
 		}
 	})
 
+	// 通用错误事件（捕获其他类型的错误）
+	c.socket.On("error", func(data ...interface{}) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("⚠️ Panic recovered in error handler: %v", r)
+				if c.OnError != nil {
+					go c.OnError(fmt.Errorf("error handler panic recovered: %v", r))
+				}
+			}
+		}()
+
+		var err error
+		if len(data) > 0 && data[0] != nil {
+			if e, ok := data[0].(error); ok {
+				err = e
+			} else {
+				err = fmt.Errorf("socket error: %v", data[0])
+			}
+		} else {
+			err = errors.New("socket error: unknown error")
+		}
+
+		log.Printf("🔥 Socket.IO error: %v", err)
+
+		if c.OnError != nil {
+			go c.OnError(err)
+		}
+	})
+
 	// 处理服务端的WebSocket消息格式
 	c.socket.On("message", func(data ...interface{}) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("⚠️ Panic recovered in message handler: %v", r)
+			}
+		}()
+
 		c.handleSocketData(data)
 	})
 
 	// 兼容标准Socket.IO事件
 	c.socket.On("push_message", func(data ...interface{}) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("⚠️ Panic recovered in push_message handler: %v", r)
+			}
+		}()
+
 		c.handlePushMessage(data, "push_message")
 	})
 
 	c.socket.On("push_notification", func(data ...interface{}) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("⚠️ Panic recovered in push_notification handler: %v", r)
+			}
+		}()
+
 		c.handlePushMessage(data, "push_notification")
 	})
 
 	c.socket.On("system_message", func(data ...interface{}) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("⚠️ Panic recovered in system_message handler: %v", r)
+			}
+		}()
+
 		c.handlePushMessage(data, "system_message")
 	})
 }
@@ -265,6 +363,12 @@ func (c *Client) handlePushMessage(data []interface{}, eventType string) {
 
 // handleSocketData 处理服务端的SocketData格式消息
 func (c *Client) handleSocketData(data []interface{}) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("⚠️ Panic recovered in handleSocketData: %v", r)
+		}
+	}()
+
 	if len(data) == 0 {
 		return
 	}
@@ -442,6 +546,12 @@ func (c *Client) parseExtraServiceMessage(data interface{}) (*ExtraServiceMessag
 
 // sendSocketData 发送SocketData格式消息
 func (c *Client) sendSocketData(socketData *SocketData) error {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("⚠️ Panic recovered in sendSocketData: %v", r)
+		}
+	}()
+
 	c.mu.RLock()
 	socket := c.socket
 	c.mu.RUnlock()
@@ -457,20 +567,41 @@ func (c *Client) sendSocketData(socketData *SocketData) error {
 
 // startHeartbeat 启动心跳
 func (c *Client) startHeartbeat() {
-	ticker := time.NewTicker(5 * time.Second) // 每25秒发送心跳
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("⚠️ Panic recovered in startHeartbeat: %v", r)
+		}
+	}()
+
+	ticker := time.NewTicker(5 * time.Second) // 每5秒发送心跳
 	defer ticker.Stop()
 
 	for range ticker.C {
-		if c.IsConnected() {
-			c.sendHeartbeat()
-		} else {
-			return // 连接断开，退出心跳
-		}
+		// 使用 recover 保护每次心跳发送
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("⚠️ Panic recovered in heartbeat tick: %v", r)
+				}
+			}()
+
+			if c.IsConnected() {
+				c.sendHeartbeat()
+			} else {
+				return // 连接断开，退出心跳
+			}
+		}()
 	}
 }
 
 // sendHeartbeat 发送心跳
 func (c *Client) sendHeartbeat() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("⚠️ Panic recovered in sendHeartbeat: %v", r)
+		}
+	}()
+
 	c.mu.RLock()
 	socket := c.socket
 	c.mu.RUnlock()
@@ -491,6 +622,12 @@ func (c *Client) sendHeartbeat() {
 
 // SendMessage 发送自定义消息
 func (c *Client) SendMessage(event string, data interface{}) error {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("⚠️ Panic recovered in SendMessage: %v", r)
+		}
+	}()
+
 	c.mu.RLock()
 	socket := c.socket
 	c.mu.RUnlock()
