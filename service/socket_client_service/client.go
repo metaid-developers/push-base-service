@@ -45,9 +45,11 @@ type ChatNotificationMessage struct {
 
 // ExtraChatMessage 聊天消息
 type ExtraServiceMessage struct {
-	Message        interface{} `json:"message"`
-	RepostMetaIds  []string    `json:"repostMetaIds"`
-	MentionMetaIds []string    `json:"mentionMetaIds"`
+	Message              interface{} `json:"message"`
+	RepostMetaIds        []string    `json:"repostMetaIds"`
+	MentionMetaIds       []string    `json:"mentionMetaIds"`
+	RepostGlobalMetaIds  []string    `json:"repostGlobalMetaIds"`
+	MentionGlobalMetaIds []string    `json:"mentionGlobalMetaIds"`
 	// PinId         string      `json:"pinId"`
 }
 
@@ -469,17 +471,21 @@ func (c *Client) handleGroupChatMessage(socketData *SocketData) {
 func (c *Client) parseExtraServiceMessage(data interface{}) (*ExtraServiceMessage, error) {
 	if data == nil {
 		return &ExtraServiceMessage{
-			Message:        nil,
-			RepostMetaIds:  []string{},
-			MentionMetaIds: []string{},
+			Message:              nil,
+			RepostMetaIds:        []string{},
+			MentionMetaIds:       []string{},
+			RepostGlobalMetaIds:  []string{},
+			MentionGlobalMetaIds: []string{},
 		}, nil
 	}
 
 	// 方法1: 如果是map格式，直接转换
 	if dataMap, ok := data.(map[string]interface{}); ok {
 		extraMsg := &ExtraServiceMessage{
-			RepostMetaIds:  []string{},
-			MentionMetaIds: []string{},
+			RepostMetaIds:        []string{},
+			MentionMetaIds:       []string{},
+			RepostGlobalMetaIds:  []string{},
+			MentionGlobalMetaIds: []string{},
 		}
 
 		// 解析 message 字段
@@ -511,6 +517,28 @@ func (c *Client) parseExtraServiceMessage(data interface{}) (*ExtraServiceMessag
 				}
 			}
 		}
+
+		// 解析 repostGlobalMetaIds 字段
+		if repostGlobalIds, exists := dataMap["repostGlobalMetaIds"]; exists {
+			if repostGlobalArray, ok := repostGlobalIds.([]interface{}); ok {
+				for _, id := range repostGlobalArray {
+					if idStr, ok := id.(string); ok {
+						extraMsg.RepostGlobalMetaIds = append(extraMsg.RepostGlobalMetaIds, idStr)
+					}
+				}
+			}
+		}
+
+		// 解析 mentionGlobalMetaIds 字段
+		if mentionGlobalIds, exists := dataMap["mentionGlobalMetaIds"]; exists {
+			if mentionGlobalArray, ok := mentionGlobalIds.([]interface{}); ok {
+				for _, id := range mentionGlobalArray {
+					if idStr, ok := id.(string); ok {
+						extraMsg.MentionGlobalMetaIds = append(extraMsg.MentionGlobalMetaIds, idStr)
+					}
+				}
+			}
+		}
 		// // 解析 pinId 字段
 		// if pinId, exists := dataMap["pinId"]; exists {
 		// 	if pinIdStr, ok := pinId.(string); ok {
@@ -528,9 +556,11 @@ func (c *Client) parseExtraServiceMessage(data interface{}) (*ExtraServiceMessag
 		if err != nil {
 			// 如果JSON解析失败，将字符串作为message
 			return &ExtraServiceMessage{
-				Message:        dataStr,
-				RepostMetaIds:  []string{},
-				MentionMetaIds: []string{},
+				Message:              dataStr,
+				RepostMetaIds:        []string{},
+				MentionMetaIds:       []string{},
+				RepostGlobalMetaIds:  []string{},
+				MentionGlobalMetaIds: []string{},
 			}, nil
 		}
 		return extraMsg, nil
@@ -538,9 +568,11 @@ func (c *Client) parseExtraServiceMessage(data interface{}) (*ExtraServiceMessag
 
 	// 方法3: 其他类型，直接作为message
 	return &ExtraServiceMessage{
-		Message:        data,
-		RepostMetaIds:  []string{},
-		MentionMetaIds: []string{},
+		Message:              data,
+		RepostMetaIds:        []string{},
+		MentionMetaIds:       []string{},
+		RepostGlobalMetaIds:  []string{},
+		MentionGlobalMetaIds: []string{},
 	}, nil
 }
 
@@ -617,7 +649,7 @@ func (c *Client) sendHeartbeat() {
 	}
 
 	c.sendSocketData(heartbeatData)
-	log.Printf("❤️ Heartbeat sent (SocketData format)")
+	// log.Printf("❤️ Heartbeat sent (SocketData format)")
 }
 
 // SendMessage 发送自定义消息

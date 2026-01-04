@@ -233,125 +233,21 @@ func (pc *PushCenter) processChatMessage(chatMsg *socket_client_service.ChatNoti
 		}
 	}
 
-	// 提取需要推送的用户ID列表
-	metaIds := chatMsg.Data.RepostMetaIds
-	if len(metaIds) == 0 {
+	// 合并 RepostMetaIds 和 RepostGlobalMetaIds
+	repostUserIds := pc.mergeUserIds(chatMsg.Data.RepostMetaIds, chatMsg.Data.RepostGlobalMetaIds)
+	if len(repostUserIds) == 0 {
 		log.Printf("⚠️ 没有需要推送的用户ID")
 		return
 	}
 
-	// 过滤掉已屏蔽该聊天的用户
-	filteredMetaIds := pc.filterBlockedUsers(metaIds, parsedInfo)
-	// if len(filteredMetaIds) == 0 {
-	// 	log.Printf("⚠️ 所有用户都已屏蔽该聊天，跳过推送")
-	// 	return
-	// }
-
-	// 处理 MentionMetaIds：分类用户
-	var mentionMetaIds []string
-	if len(chatMsg.Data.MentionMetaIds) > 0 {
-		// 过滤被提及的用户（移除已屏蔽的）
-		mentionMetaIds = chatMsg.Data.MentionMetaIds
-		fmt.Printf("mentionMetaIds: %+v\n", mentionMetaIds)
-
+	// 合并 MentionMetaIds 和 MentionGlobalMetaIds
+	mentionUserIds := pc.mergeUserIds(chatMsg.Data.MentionMetaIds, chatMsg.Data.MentionGlobalMetaIds)
+	if len(mentionUserIds) > 0 {
+		log.Printf("📝 合并后的提及用户ID: %+v", mentionUserIds)
 	}
 
-	// 将用户分为两组：被提及的用户和普通用户
-	var mentionedUsers []string
-	var normalUsers []string
-	mentionedUsers = mentionMetaIds
-
-	//filteredMetaIds里面去重mentionMetaIds,如果有重复的，则只保留一个
-	for _, metaId := range filteredMetaIds {
-		if !slices.Contains(mentionMetaIds, metaId) {
-			normalUsers = append(normalUsers, metaId)
-		}
-	}
-
-	// 为被提及的用户生成通知（参考 Telegram 的提及消息格式）
-	if len(mentionedUsers) > 0 {
-		mentionTitle := pc.generateNotificationTitle(chatMsg.Type, true)
-		mentionBody := pc.GenerateNotificationBody(chatMsg.Type, parsedInfo.UserName, parsedInfo.ChatInfoType, true, parsedInfo.GroupId)
-
-		// 构造提及消息的自定义数据
-		mentionData := map[string]interface{}{
-			"type":      chatMsg.Type,
-			"message":   chatMsg.Data.Message,
-			"timestamp": time.Now().Unix(),
-			"pinId":     parsedInfo.PinId,
-			"isMention": true,
-		}
-
-		// 根据聊天类型添加特定信息
-		if parsedInfo.ChatType == "private_chat" && parsedInfo.MetaId != "" {
-			mentionData["metaId"] = parsedInfo.MetaId
-		} else if parsedInfo.ChatType == "group_chat" && parsedInfo.GroupId != "" {
-			mentionData["groupId"] = parsedInfo.GroupId
-		}
-
-		log.Printf("🔔 开始推送提及消息给 %d 个用户", len(mentionedUsers))
-		mentionResult, err := pc.pushManager.SendToUsersWithData(ctx, mentionedUsers, mentionTitle, mentionBody, mentionData)
-		if err != nil {
-			log.Printf("❌ 推送提及消息失败: %v", err)
-		} else {
-			log.Printf("✅ 提及消息推送完成: 总用户=%d, 成功=%d, 失败=%d, 耗时=%v",
-				mentionResult.TotalUsers, mentionResult.SuccessCount, mentionResult.FailureCount, mentionResult.Duration)
-		}
-	}
-
-	// 为普通用户生成通知
-	if len(normalUsers) > 0 {
-		title := pc.generateNotificationTitle(chatMsg.Type, false)
-		body := pc.GenerateNotificationBody(chatMsg.Type, parsedInfo.UserName, parsedInfo.ChatInfoType, false, "")
-
-		// 构造自定义数据，包含解析后的信息
-		normalData := map[string]interface{}{
-			"type":      chatMsg.Type,
-			"message":   chatMsg.Data.Message,
-			"timestamp": time.Now().Unix(),
-			"pinId":     parsedInfo.PinId,
-		}
-
-		// 根据聊天类型添加特定信息
-		if parsedInfo.ChatType == "private_chat" && parsedInfo.MetaId != "" {
-			normalData["metaId"] = parsedInfo.MetaId
-			log.Printf("📱 私聊消息 - 发送者/接收者MetaId: %s, 用户名: %s", parsedInfo.MetaId, parsedInfo.UserName)
-		} else if parsedInfo.ChatType == "group_chat" && parsedInfo.GroupId != "" {
-			normalData["groupId"] = parsedInfo.GroupId
-			log.Printf("👥 群聊消息 - 群组ID: %s, 用户名: %s", parsedInfo.GroupId, parsedInfo.UserName)
-		}
-
-		log.Printf("🚀 开始推送普通消息给 %d 个用户", len(normalUsers))
-		log.Printf("📋 消息详情 - PinId: %s, ChatType: %s, UserName: %s", parsedInfo.PinId, parsedInfo.ChatType, parsedInfo.UserName)
-
-		// 调用 push_service.SendToUsers 发送推送
-		normalResult, err := pc.pushManager.SendToUsersWithData(ctx, normalUsers, title, body, normalData)
-		if err != nil {
-			log.Printf("❌ 推送普通消息失败: %v", err)
-		} else {
-			// 记录推送结果
-			log.Printf("✅ 普通消息推送完成: 总用户=%d, 成功=%d, 失败=%d, 耗时=%v",
-				normalResult.TotalUsers, normalResult.SuccessCount, normalResult.FailureCount, normalResult.Duration)
-
-			// 如果有失败的推送，记录详细信息
-			if normalResult.FailureCount > 0 {
-				for _, pushResult := range normalResult.Results {
-					if !pushResult.Success && pushResult.Error != nil {
-						log.Printf("⚠️ 推送失败 - 用户: %s, 平台: %s, 错误: %v",
-							pushResult.MetaID, pushResult.Platform, pushResult.Error)
-					}
-				}
-			}
-		}
-	}
-
-	// 添加已通知PIN记录（使用解析后的 PinId）
-	if parsedInfo.PinId != "" {
-		go pebble_service.AddNotifiedPin(parsedInfo.PinId)
-		log.Printf("📌 已记录PIN通知状态: %s", parsedInfo.PinId)
-	} else {
-		log.Printf("⚠️ PinId为空，跳过PIN通知记录")
-	}
+	// 处理用户推送逻辑
+	pc.processUserPush(ctx, repostUserIds, mentionUserIds, chatMsg, parsedInfo)
 }
 
 // generateNotificationTitle 生成通知标题
@@ -632,6 +528,138 @@ func (pc *PushCenter) parseMessageInfo(chatMsg *socket_client_service.ChatNotifi
 	// 方法3: 如果无法解析，返回基本信息
 	log.Printf("⚠️ 无法解析消息内容，使用基本信息: PinId=%s, ChatType=%s", parsedInfo.PinId, parsedInfo.ChatType)
 	return parsedInfo, nil
+}
+
+// mergeUserIds 合并 metaIds 和 globalMetaIds 列表并去重
+func (pc *PushCenter) mergeUserIds(metaIds, globalMetaIds []string) []string {
+	// 使用 map 来去重
+	userMap := make(map[string]bool)
+	var merged []string
+
+	// 添加 metaIds
+	for _, id := range metaIds {
+		if id != "" && !userMap[id] {
+			userMap[id] = true
+			merged = append(merged, id)
+		}
+	}
+
+	// 添加 globalMetaIds
+	for _, id := range globalMetaIds {
+		if id != "" && !userMap[id] {
+			userMap[id] = true
+			merged = append(merged, id)
+		}
+	}
+
+	return merged
+}
+
+// processUserPush 处理用户推送逻辑（支持 metaId 和 globalMetaId）
+func (pc *PushCenter) processUserPush(ctx context.Context, repostUserIds []string, mentionUserIds []string, chatMsg *socket_client_service.ChatNotificationMessage, parsedInfo *ParsedMessageInfo) {
+	// 过滤掉已屏蔽该聊天的用户
+	filteredMetaIds := pc.filterBlockedUsers(repostUserIds, parsedInfo)
+	// if len(filteredMetaIds) == 0 {
+	// 	log.Printf("⚠️ 所有用户都已屏蔽该聊天，跳过推送")
+	// 	return
+	// }
+
+	// 将用户分为两组：被提及的用户和普通用户
+	var mentionedUsers []string
+	var normalUsers []string
+	mentionedUsers = mentionUserIds
+
+	// filteredMetaIds里面去重mentionUserIds,如果有重复的，则只保留一个
+	for _, metaId := range filteredMetaIds {
+		if !slices.Contains(mentionUserIds, metaId) {
+			normalUsers = append(normalUsers, metaId)
+		}
+	}
+
+	// 为被提及的用户生成通知（参考 Telegram 的提及消息格式）
+	if len(mentionedUsers) > 0 {
+		mentionTitle := pc.generateNotificationTitle(chatMsg.Type, true)
+		mentionBody := pc.GenerateNotificationBody(chatMsg.Type, parsedInfo.UserName, parsedInfo.ChatInfoType, true, parsedInfo.GroupId)
+
+		// 构造提及消息的自定义数据
+		mentionData := map[string]interface{}{
+			"type":      chatMsg.Type,
+			"message":   chatMsg.Data.Message,
+			"timestamp": time.Now().Unix(),
+			"pinId":     parsedInfo.PinId,
+			"isMention": true,
+		}
+
+		// 根据聊天类型添加特定信息
+		if parsedInfo.ChatType == "private_chat" && parsedInfo.MetaId != "" {
+			mentionData["metaId"] = parsedInfo.MetaId
+		} else if parsedInfo.ChatType == "group_chat" && parsedInfo.GroupId != "" {
+			mentionData["groupId"] = parsedInfo.GroupId
+		}
+
+		log.Printf("🔔 开始推送提及消息给 %d 个用户", len(mentionedUsers))
+		mentionResult, err := pc.pushManager.SendToUsersWithData(ctx, mentionedUsers, mentionTitle, mentionBody, mentionData)
+		if err != nil {
+			log.Printf("❌ 推送提及消息失败: %v", err)
+		} else {
+			log.Printf("✅ 提及消息推送完成: 总用户=%d, 成功=%d, 失败=%d, 耗时=%v",
+				mentionResult.TotalUsers, mentionResult.SuccessCount, mentionResult.FailureCount, mentionResult.Duration)
+		}
+	}
+
+	// 为普通用户生成通知
+	if len(normalUsers) > 0 {
+		title := pc.generateNotificationTitle(chatMsg.Type, false)
+		body := pc.GenerateNotificationBody(chatMsg.Type, parsedInfo.UserName, parsedInfo.ChatInfoType, false, "")
+
+		// 构造自定义数据，包含解析后的信息
+		normalData := map[string]interface{}{
+			"type":      chatMsg.Type,
+			"message":   chatMsg.Data.Message,
+			"timestamp": time.Now().Unix(),
+			"pinId":     parsedInfo.PinId,
+		}
+
+		// 根据聊天类型添加特定信息
+		if parsedInfo.ChatType == "private_chat" && parsedInfo.MetaId != "" {
+			normalData["metaId"] = parsedInfo.MetaId
+			log.Printf("📱 私聊消息 - 发送者/接收者MetaId: %s, 用户名: %s", parsedInfo.MetaId, parsedInfo.UserName)
+		} else if parsedInfo.ChatType == "group_chat" && parsedInfo.GroupId != "" {
+			normalData["groupId"] = parsedInfo.GroupId
+			log.Printf("👥 群聊消息 - 群组ID: %s, 用户名: %s", parsedInfo.GroupId, parsedInfo.UserName)
+		}
+
+		log.Printf("🚀 开始推送普通消息给 %d 个用户", len(normalUsers))
+		log.Printf("📋 消息详情 - PinId: %s, ChatType: %s, UserName: %s", parsedInfo.PinId, parsedInfo.ChatType, parsedInfo.UserName)
+
+		// 调用 push_service.SendToUsers 发送推送
+		normalResult, err := pc.pushManager.SendToUsersWithData(ctx, normalUsers, title, body, normalData)
+		if err != nil {
+			log.Printf("❌ 推送普通消息失败: %v", err)
+		} else {
+			// 记录推送结果
+			log.Printf("✅ 普通消息推送完成: 总用户=%d, 成功=%d, 失败=%d, 耗时=%v",
+				normalResult.TotalUsers, normalResult.SuccessCount, normalResult.FailureCount, normalResult.Duration)
+
+			// 如果有失败的推送，记录详细信息
+			if normalResult.FailureCount > 0 {
+				for _, pushResult := range normalResult.Results {
+					if !pushResult.Success && pushResult.Error != nil {
+						log.Printf("⚠️ 推送失败 - 用户: %s, 平台: %s, 错误: %v",
+							pushResult.MetaID, pushResult.Platform, pushResult.Error)
+					}
+				}
+			}
+		}
+	}
+
+	// 添加已通知PIN记录（使用解析后的 PinId）
+	if parsedInfo.PinId != "" {
+		go pebble_service.AddNotifiedPin(parsedInfo.PinId)
+		log.Printf("📌 已记录PIN通知状态: %s", parsedInfo.PinId)
+	} else {
+		log.Printf("⚠️ PinId为空，跳过PIN通知记录")
+	}
 }
 
 // filterBlockedUsers 过滤掉已屏蔽该聊天的用户
