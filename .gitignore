@@ -1,8 +1,7 @@
 .DS_Store
 .idea
-conf/conf_pro.yaml
-conf/conf_test.yaml
-conf/conf_test_loc.yaml
+conf/conf_*
+!conf/conf_example.yaml
 data/
 logs/
 *.log

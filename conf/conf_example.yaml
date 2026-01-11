@@ -34,13 +34,7 @@ push_center:
 
 # socket.io client configuration
 socket_client:
-  server_url: "https://www.show.now/socket-test"
-  meta_id: "27223571215ada00cc5071cac1f5b3b43f2acd5eb06b3dd8a19e8be0db88856d"
-  path: "/socket.io/"
+  server_url: "https://your-server-url"
+  extra_push_auth_key: "your-extra-push-auth-key"
+  path: "/socket/socket.io/"
   timeout: 10  # seconds
-
-#rds
-rds:
-  dsn: ""
-  max_open_conns: 1000
-  max_igle_conns: 50
