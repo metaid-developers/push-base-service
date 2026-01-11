@@ -1,5 +1,7 @@
 # Push Base Service
 
+[English](README.md) | [中文](README-zh.md)
+
 ## Overview
 
 Push Base Service is a notification push service designed to provide app push notifications for MetaSO's chat nodes. This service supports real-time message delivery for private chat and group chat scenarios, enabling seamless communication experiences in mobile applications.
@@ -15,16 +17,6 @@ Push Base Service is a notification push service designed to provide app push no
 - **High Performance**: Concurrent push delivery with configurable batch processing
 - **Retry Mechanism**: Automatic retry with configurable retry intervals
 - **Environment Support**: Supports mainnet and testnet environments
-
-## Technology Stack
-
-- **Language**: Go 1.24.7
-- **Web Framework**: Gin
-- **Database**: Pebble (for token storage)
-- **Push Service**: Expo Push Notification
-- **Real-time Communication**: Socket.IO
-- **Configuration**: Viper
-- **API Documentation**: Swagger
 
 ## Quick Start
 

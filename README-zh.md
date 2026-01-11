@@ -1,5 +1,7 @@
 # 推送基础服务
 
+[English](README.md) | [中文](README-zh.md)
+
 ## 项目简介
 
 推送基础服务（Push Base Service）是一个专为 MetaSO 的 chat 节点提供 app 推送通知的服务。该服务支持私聊和群聊场景的实时消息推送，为移动应用提供无缝的通信体验。
